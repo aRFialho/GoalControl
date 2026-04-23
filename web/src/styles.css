@@ -1,0 +1,44 @@
+@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700&family=Bungee&family=Sora:wght@400;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #17324d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Sora", sans-serif;
+  color: #17324d;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(255, 167, 38, 0.36), transparent 44%),
+    radial-gradient(circle at 85% 15%, rgba(46, 201, 214, 0.33), transparent 45%),
+    linear-gradient(145deg, #fffce8 0%, #fff8df 30%, #f0fbff 100%);
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.25;
+  background-image:
+    linear-gradient(45deg, rgba(23, 50, 77, 0.06) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(23, 50, 77, 0.06) 25%, transparent 25%);
+  background-size: 28px 28px;
+  z-index: -1;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(8px);
+}
+
