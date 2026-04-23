@@ -76,7 +76,7 @@ export function DashboardPanel({
   const zeroStock = snapshot.products.filter((product) => product.stock === 0).length;
 
   return (
-    <div className="grid gap-5">
+    <div className="grid min-w-0 gap-5">
       <div className="glass-card rounded-2xl border border-white/70 p-4">
         <h3 className="font-display text-lg text-ink">Placar em Tempo Real</h3>
         <p className="text-sm text-ink/70">
