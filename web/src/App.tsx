@@ -6,6 +6,8 @@ import { useGoalControlStore } from "./store/useGoalControlStore";
 
 const FESTIVE_ALERT_DURATION_MS = 30_000;
 const FESTIVE_ALERT_DELAY_MS = 850;
+const INACTIVITY_THRESHOLD_MS = 60_000;
+const INACTIVITY_REFRESH_INTERVAL_MS = 60_000;
 
 type AppTab = "ADMIN" | "DASH";
 type FestiveAlertTone = "sale" | "hot" | "goal";
@@ -94,6 +96,7 @@ export default function App() {
   const errorMessage = useGoalControlStore((state) => state.errorMessage);
   const clearError = useGoalControlStore((state) => state.clearError);
   const init = useGoalControlStore((state) => state.init);
+  const silentRefresh = useGoalControlStore((state) => state.silentRefresh);
 
   const [activeTab, setActiveTab] = useState<AppTab>("DASH");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -106,6 +109,10 @@ export default function App() {
   const alertShowTimerRef = useRef<number | null>(null);
   const alertHideTimerRef = useRef<number | null>(null);
   const handledEventRef = useRef<number | null>(null);
+  const inactivityTimeoutRef = useRef<number | null>(null);
+  const inactivityRefreshIntervalRef = useRef<number | null>(null);
+  const inactiveModeRef = useRef(false);
+  const silentRefreshInFlightRef = useRef(false);
 
   useEffect(() => {
     void init();
@@ -192,6 +199,78 @@ export default function App() {
       }
     };
   }, []);
+
+  useEffect(() => {
+    const doSilentRefresh = () => {
+      if (silentRefreshInFlightRef.current) {
+        return;
+      }
+      silentRefreshInFlightRef.current = true;
+      void silentRefresh().finally(() => {
+        silentRefreshInFlightRef.current = false;
+      });
+    };
+
+    const stopInactiveRefresh = () => {
+      inactiveModeRef.current = false;
+      if (inactivityRefreshIntervalRef.current) {
+        window.clearInterval(inactivityRefreshIntervalRef.current);
+        inactivityRefreshIntervalRef.current = null;
+      }
+    };
+
+    const startInactiveRefresh = () => {
+      if (inactiveModeRef.current) {
+        return;
+      }
+      inactiveModeRef.current = true;
+      doSilentRefresh();
+      inactivityRefreshIntervalRef.current = window.setInterval(
+        doSilentRefresh,
+        INACTIVITY_REFRESH_INTERVAL_MS
+      );
+    };
+
+    const scheduleInactiveMode = () => {
+      if (inactivityTimeoutRef.current) {
+        window.clearTimeout(inactivityTimeoutRef.current);
+      }
+      inactivityTimeoutRef.current = window.setTimeout(
+        startInactiveRefresh,
+        INACTIVITY_THRESHOLD_MS
+      );
+    };
+
+    const onUserActivity = () => {
+      stopInactiveRefresh();
+      scheduleInactiveMode();
+    };
+
+    scheduleInactiveMode();
+
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "mousemove",
+      "mousedown",
+      "keydown",
+      "touchstart",
+      "scroll",
+      "focus"
+    ];
+
+    for (const eventName of activityEvents) {
+      window.addEventListener(eventName, onUserActivity);
+    }
+
+    return () => {
+      if (inactivityTimeoutRef.current) {
+        window.clearTimeout(inactivityTimeoutRef.current);
+      }
+      stopInactiveRefresh();
+      for (const eventName of activityEvents) {
+        window.removeEventListener(eventName, onUserActivity);
+      }
+    };
+  }, [silentRefresh]);
 
   const generatedAt = useMemo(() => {
     if (!snapshot) {
@@ -312,7 +391,7 @@ export default function App() {
                 {festiveAlert.message}
               </p>
               <p className="mt-3 text-sm font-bold uppercase tracking-[0.28em] text-cream/90 md:text-base">
-                ALERTA FESTIVO AO VIVO
+                CADA VENDA E UM PASSO A MAIS RUMO A META
               </p>
             </div>
           </div>

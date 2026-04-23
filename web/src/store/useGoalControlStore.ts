@@ -25,6 +25,7 @@ interface GoalControlState {
   errorMessage: string | null;
   init: () => Promise<void>;
   refresh: () => Promise<void>;
+  silentRefresh: () => Promise<void>;
   createProduct: (payload: ProductPayload) => Promise<void>;
   createProductsBatch: (payloads: ProductPayload[]) => Promise<void>;
   updateProduct: (productId: string, payload: ProductPayload) => Promise<void>;
@@ -114,6 +115,15 @@ export const useGoalControlStore = create<GoalControlState>((set, get) => ({
       set({
         errorMessage: error instanceof Error ? error.message : "Falha ao atualizar dashboard."
       });
+    }
+  },
+
+  silentRefresh: async () => {
+    try {
+      const snapshot = await fetchSnapshot();
+      set({ snapshot });
+    } catch {
+      // Silencioso por design: usado como keep-alive e refresh em background.
     }
   },
 

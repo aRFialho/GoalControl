@@ -1,9 +1,18 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { DashboardSnapshot, Product, ProductPayload } from "../lib/types";
 import { useGoalControlStore } from "../store/useGoalControlStore";
 
 interface AdminPanelProps {
   snapshot: DashboardSnapshot;
+}
+
+async function fileToDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(new Error("Nao foi possivel ler o arquivo da imagem."));
+    reader.readAsDataURL(file);
+  });
 }
 
 function ProductEditor({
@@ -21,6 +30,7 @@ function ProductEditor({
     stock: product.stock
   });
   const [saving, setSaving] = useState(false);
+  const [loadingFile, setLoadingFile] = useState(false);
 
   useEffect(() => {
     setForm({
@@ -39,6 +49,21 @@ function ProductEditor({
       await onSave(product.id, form);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onImageFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    setLoadingFile(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setForm((prev) => ({ ...prev, imageUrl: dataUrl }));
+    } finally {
+      setLoadingFile(false);
+      e.target.value = "";
     }
   }
 
@@ -107,6 +132,23 @@ function ProductEditor({
           />
         </div>
 
+        <div className="grid gap-2 md:grid-cols-[1fr,180px]">
+          <label className="text-xs font-medium text-ink/75">
+            Imagem por arquivo
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onImageFileChange}
+              className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-2 py-2 text-xs"
+            />
+          </label>
+          <div className="flex items-end">
+            {loadingFile && (
+              <p className="text-xs font-semibold text-ink/70">Carregando imagem...</p>
+            )}
+          </div>
+        </div>
+
         <button
           type="submit"
           disabled={saving}
@@ -146,6 +188,8 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
     "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&q=80"
   );
   const [batchInput, setBatchInput] = useState("");
+  const [creatingImageFromFile, setCreatingImageFromFile] = useState(false);
+  const [batchImageLoading, setBatchImageLoading] = useState(false);
 
   const [saleProductId, setSaleProductId] = useState<string>(
     snapshot.products[0]?.id ?? ""
@@ -200,6 +244,36 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
       }));
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function onCreateImageFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    setCreatingImageFromFile(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setNewProduct((prev) => ({ ...prev, imageUrl: dataUrl }));
+    } finally {
+      setCreatingImageFromFile(false);
+      e.target.value = "";
+    }
+  }
+
+  async function onBatchImageFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) {
+      return;
+    }
+    setBatchImageLoading(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      setBatchImageUrl(dataUrl);
+    } finally {
+      setBatchImageLoading(false);
+      e.target.value = "";
     }
   }
 
@@ -346,6 +420,22 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
           placeholder="URL da imagem"
           required
         />
+        <div className="mt-2 grid gap-2 md:grid-cols-[1fr,220px]">
+          <label className="text-xs font-medium text-ink/75">
+            Ou selecionar arquivo
+            <input
+              type="file"
+              accept="image/*"
+              onChange={onCreateImageFileChange}
+              className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-2 py-2 text-xs"
+            />
+          </label>
+          <div className="flex items-end">
+            {creatingImageFromFile && (
+              <p className="text-xs font-semibold text-ink/70">Carregando imagem...</p>
+            )}
+          </div>
+        </div>
 
         <form onSubmit={submitBatchProducts} className="mt-4 rounded-2xl border border-ink/15 bg-white/50 p-3">
           <h4 className="font-display text-base text-ink">Cadastro em lote</h4>
@@ -368,6 +458,22 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
               placeholder="Imagem padrao (opcional por linha)"
               required
             />
+          </div>
+          <div className="mt-2 grid gap-2 md:grid-cols-[1fr,220px]">
+            <label className="text-xs font-medium text-ink/75">
+              Imagem padrao por arquivo
+              <input
+                type="file"
+                accept="image/*"
+                onChange={onBatchImageFileChange}
+                className="mt-1 w-full rounded-xl border border-ink/20 bg-white px-2 py-2 text-xs"
+              />
+            </label>
+            <div className="flex items-end">
+              {batchImageLoading && (
+                <p className="text-xs font-semibold text-ink/70">Carregando imagem...</p>
+              )}
+            </div>
           </div>
           <textarea
             value={batchInput}
