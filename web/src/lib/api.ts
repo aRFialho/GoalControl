@@ -1,6 +1,9 @@
-import { DashboardSnapshot, Goals, ProductPayload, SaleEvent } from "./types";
+﻿import { DashboardSnapshot, Goals, ProductPayload, SaleEvent } from "./types";
 
-const API_BASE = (import.meta.env.VITE_API_URL ?? "http://localhost:4000").replace(/\/$/, "");
+const runtimeOrigin =
+  typeof window !== "undefined" ? window.location.origin : "http://localhost:4000";
+const defaultApiBase = import.meta.env.DEV ? "http://localhost:4000" : runtimeOrigin;
+const API_BASE = (import.meta.env.VITE_API_URL ?? defaultApiBase).replace(/\/$/, "");
 
 interface SnapshotResponse {
   snapshot: DashboardSnapshot;
@@ -24,7 +27,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     const errorBody = (await response.json().catch(() => null)) as
       | { error?: string }
       | null;
-    const message = errorBody?.error ?? "Erro de comunicação com o servidor.";
+    const message = errorBody?.error ?? "Erro de comunicacao com o servidor.";
     throw new Error(message);
   }
 

@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: goalcontrol
+    env: node
+    buildCommand: npm ci --include=dev && npm run build && npm run migrate:deploy
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+

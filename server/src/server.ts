@@ -1,4 +1,6 @@
 ﻿import { createServer } from "node:http";
+import fs from "node:fs";
+import path from "node:path";
 import cors from "cors";
 import express from "express";
 import { WebSocket, WebSocketServer } from "ws";
@@ -19,6 +21,22 @@ import { WsMessage } from "./types";
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
+
+function resolveWebDistDir(): string | null {
+  const candidates = [
+    path.resolve(process.cwd(), "web", "dist"),
+    path.resolve(process.cwd(), "..", "web", "dist"),
+    path.resolve(__dirname, "..", "..", "web", "dist")
+  ];
+
+  for (const candidate of candidates) {
+    if (fs.existsSync(path.join(candidate, "index.html"))) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
 
 const productSchema = z.object({
   type: z.enum(["OUTLET", "RELAUNCH"]),
@@ -82,6 +100,7 @@ function normalizeKnownError(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
   }
+
   return "Erro inesperado.";
 }
 
@@ -115,7 +134,7 @@ app.post("/api/products", async (req, res) => {
 app.post("/api/products/batch", async (req, res) => {
   try {
     const parsed = productsBatchSchema.parse(req.body);
-    await createProductsBatch(parsed.products as ProductPayload[]);
+    await createProductsBatch(parsed.products);
     const snapshot = await getSnapshot();
     broadcast({ type: "state.snapshot", snapshot });
     res.status(201).json({ snapshot });
@@ -166,6 +185,23 @@ app.post("/api/sales", async (req, res) => {
     res.status(status).json({ error: message });
   }
 });
+
+const shouldServeFrontend = process.env.NODE_ENV === "production";
+const webDistDir = resolveWebDistDir();
+
+if (shouldServeFrontend && webDistDir) {
+  app.use(express.static(webDistDir));
+
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api") || req.path === "/ws") {
+      next();
+      return;
+    }
+    res.sendFile(path.join(webDistDir, "index.html"));
+  });
+} else if (shouldServeFrontend) {
+  console.warn("NODE_ENV=production, mas web/dist nao foi encontrado. Frontend nao sera servido por este processo.");
+}
 
 const server = createServer(app);
 const wss = new WebSocketServer({ server, path: "/ws" });
