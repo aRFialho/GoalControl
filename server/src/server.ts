@@ -8,8 +8,10 @@ import { z } from "zod";
 import "./env";
 import {
   announceSale,
+  cancelSale,
   createProduct,
   createProductsBatch,
+  deleteProductAndHistory,
   ensureGoalSeed,
   getSnapshot,
   ProductPayload,
@@ -56,6 +58,9 @@ const productsBatchSchema = z.object({
 const saleSchema = z.object({
   productId: z.string().uuid("Produto invalido."),
   quantity: z.coerce.number().int().min(1, "Quantidade deve ser >= 1.")
+});
+const saleCancelParamsSchema = z.object({
+  saleId: z.coerce.number().int().positive("ID de venda invalido.")
 });
 
 const goalsSchema = z.object({
@@ -159,6 +164,19 @@ app.put("/api/products/:productId", async (req, res) => {
   }
 });
 
+app.delete("/api/products/:productId", async (req, res) => {
+  try {
+    await deleteProductAndHistory(req.params.productId);
+    const snapshot = await getSnapshot();
+    broadcast({ type: "state.snapshot", snapshot });
+    res.json({ snapshot });
+  } catch (error) {
+    const message = normalizeKnownError(error);
+    const status = error instanceof z.ZodError ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
+});
+
 app.post("/api/goals", async (req, res) => {
   try {
     const parsed = goalsSchema.parse(req.body);
@@ -178,6 +196,19 @@ app.post("/api/sales", async (req, res) => {
     const parsed = saleSchema.parse(req.body);
     const payload = await announceSale(parsed.productId, parsed.quantity);
     broadcast({ type: "sale.event", snapshot: payload.snapshot, event: payload.event });
+    res.json(payload);
+  } catch (error) {
+    const message = normalizeKnownError(error);
+    const status = error instanceof z.ZodError ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
+});
+
+app.post("/api/sales/:saleId/cancel", async (req, res) => {
+  try {
+    const { saleId } = saleCancelParamsSchema.parse(req.params);
+    const payload = await cancelSale(saleId);
+    broadcast({ type: "state.snapshot", snapshot: payload.snapshot });
     res.json(payload);
   } catch (error) {
     const message = normalizeKnownError(error);

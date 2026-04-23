@@ -17,10 +17,12 @@ async function fileToDataUrl(file: File): Promise<string> {
 
 function ProductEditor({
   product,
-  onSave
+  onSave,
+  onDelete
 }: {
   product: Product;
   onSave: (productId: string, payload: ProductPayload) => Promise<void>;
+  onDelete: (productId: string) => Promise<void>;
 }) {
   const [form, setForm] = useState<ProductPayload>({
     type: product.type,
@@ -31,6 +33,7 @@ function ProductEditor({
   });
   const [saving, setSaving] = useState(false);
   const [loadingFile, setLoadingFile] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setForm({
@@ -64,6 +67,22 @@ function ProductEditor({
     } finally {
       setLoadingFile(false);
       e.target.value = "";
+    }
+  }
+
+  async function handleDelete() {
+    const confirmed = window.confirm(
+      `Excluir ${product.name} e todo o historico de vendas desse produto?`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await onDelete(product.id);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -149,13 +168,23 @@ function ProductEditor({
           </div>
         </div>
 
-        <button
-          type="submit"
-          disabled={saving}
-          className="w-fit rounded-xl bg-cyanpop px-4 py-2 text-sm font-semibold text-ink transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {saving ? "Salvando..." : "Salvar Produto"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="submit"
+            disabled={saving || deleting}
+            className="w-fit rounded-xl bg-cyanpop px-4 py-2 text-sm font-semibold text-ink transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {saving ? "Salvando..." : "Salvar Produto"}
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={saving || deleting}
+            className="w-fit rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {deleting ? "Excluindo..." : "Excluir Produto + Historico"}
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -165,12 +194,15 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
   const createProduct = useGoalControlStore((state) => state.createProduct);
   const createProductsBatch = useGoalControlStore((state) => state.createProductsBatch);
   const updateProduct = useGoalControlStore((state) => state.updateProduct);
+  const deleteProduct = useGoalControlStore((state) => state.deleteProduct);
   const saveGoals = useGoalControlStore((state) => state.saveGoals);
   const announceSale = useGoalControlStore((state) => state.announceSale);
+  const cancelSale = useGoalControlStore((state) => state.cancelSale);
 
   const [creating, setCreating] = useState(false);
   const [creatingBatch, setCreatingBatch] = useState(false);
   const [selling, setSelling] = useState(false);
+  const [cancelingSale, setCancelingSale] = useState(false);
   const [savingGoals, setSavingGoals] = useState(false);
   const [batchError, setBatchError] = useState<string | null>(null);
   const [batchSuccess, setBatchSuccess] = useState<string | null>(null);
@@ -195,6 +227,9 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
     snapshot.products[0]?.id ?? ""
   );
   const [saleQuantity, setSaleQuantity] = useState(1);
+  const [cancelSaleId, setCancelSaleId] = useState<number | null>(
+    snapshot.recentSales[0]?.id ?? null
+  );
 
   const [goalsForm, setGoalsForm] = useState({
     month: snapshot.goals.month,
@@ -221,6 +256,17 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
       fortnight: snapshot.goals.fortnight
     });
   }, [snapshot.goals]);
+
+  useEffect(() => {
+    if (!snapshot.recentSales.length) {
+      setCancelSaleId(null);
+      return;
+    }
+    const exists = snapshot.recentSales.some((sale) => sale.id === cancelSaleId);
+    if (!exists) {
+      setCancelSaleId(snapshot.recentSales[0].id);
+    }
+  }, [snapshot.recentSales, cancelSaleId]);
 
   const outletProducts = useMemo(
     () => snapshot.products.filter((product) => product.type === "OUTLET"),
@@ -350,6 +396,31 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
       await saveGoals(goalsForm);
     } finally {
       setSavingGoals(false);
+    }
+  }
+
+  async function submitCancelSale(e: FormEvent) {
+    e.preventDefault();
+    if (!cancelSaleId) {
+      return;
+    }
+
+    const selectedSale = snapshot.recentSales.find((sale) => sale.id === cancelSaleId);
+    const confirmed = window.confirm(
+      selectedSale
+        ? `Cancelar venda de ${selectedSale.productName} (${selectedSale.quantity} un.)?`
+        : "Cancelar esta venda?"
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setCancelingSale(true);
+    try {
+      await cancelSale(cancelSaleId);
+    } finally {
+      setCancelingSale(false);
     }
   }
 
@@ -509,6 +580,7 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
                 key={product.id}
                 product={product}
                 onSave={updateProduct}
+                onDelete={deleteProduct}
               />
             ))}
           </div>
@@ -525,6 +597,7 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
                 key={product.id}
                 product={product}
                 onSave={updateProduct}
+                onDelete={deleteProduct}
               />
             ))}
           </div>
@@ -572,6 +645,41 @@ export function AdminPanel({ snapshot }: AdminPanelProps) {
           className="self-end rounded-xl bg-lime px-4 py-2 text-sm font-bold text-ink transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {selling ? "Enviando..." : "Anunciar Venda"}
+        </button>
+      </form>
+
+      <form
+        onSubmit={submitCancelSale}
+        className="glass-card grid gap-2 rounded-2xl border border-white/70 p-4 md:grid-cols-[1fr,190px]"
+      >
+        <div>
+          <h3 className="font-display text-lg text-ink">Cancelar Venda</h3>
+          <p className="text-sm text-ink/70">
+            Remove a venda do historico e devolve o estoque do produto.
+          </p>
+          <select
+            value={cancelSaleId ?? ""}
+            onChange={(e) => setCancelSaleId(Number(e.target.value) || null)}
+            className="mt-2 w-full rounded-xl border border-ink/20 bg-white px-3 py-2 text-sm"
+            disabled={!snapshot.recentSales.length}
+          >
+            {snapshot.recentSales.length === 0 && (
+              <option value="">Sem vendas para cancelar</option>
+            )}
+            {snapshot.recentSales.map((sale) => (
+              <option key={sale.id} value={sale.id}>
+                #{sale.id} - {sale.productName} ({sale.quantity} un.) em{" "}
+                {new Date(sale.createdAt).toLocaleString("pt-BR")}
+              </option>
+            ))}
+          </select>
+        </div>
+        <button
+          type="submit"
+          disabled={!cancelSaleId || cancelingSale}
+          className="self-end rounded-xl bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:scale-[1.03] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {cancelingSale ? "Cancelando..." : "Cancelar Venda"}
         </button>
       </form>
 

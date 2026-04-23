@@ -35,7 +35,9 @@ npm run dev
 - `POST /api/products`
 - `POST /api/products/batch`
 - `PUT /api/products/:productId`
+- `DELETE /api/products/:productId`
 - `POST /api/sales`
+- `POST /api/sales/:saleId/cancel`
 - `POST /api/goals`
 - `WS /ws`
 

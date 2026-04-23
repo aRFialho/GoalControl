@@ -72,6 +72,13 @@ export async function updateProduct(
   return result.snapshot;
 }
 
+export async function deleteProduct(productId: string): Promise<DashboardSnapshot> {
+  const result = await request<SnapshotResponse>(`/api/products/${productId}`, {
+    method: "DELETE"
+  });
+  return result.snapshot;
+}
+
 export async function saveGoals(payload: Goals): Promise<DashboardSnapshot> {
   const result = await request<SnapshotResponse>("/api/goals", {
     method: "POST",
@@ -88,4 +95,11 @@ export async function announceSale(
     method: "POST",
     body: JSON.stringify({ productId, quantity })
   });
+}
+
+export async function cancelSale(saleId: number): Promise<DashboardSnapshot> {
+  const result = await request<SnapshotResponse>(`/api/sales/${saleId}/cancel`, {
+    method: "POST"
+  });
+  return result.snapshot;
 }

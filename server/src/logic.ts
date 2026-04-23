@@ -566,6 +566,26 @@ export async function updateProduct(
   return mapProduct(rows[0]);
 }
 
+export async function deleteProductAndHistory(productId: string): Promise<void> {
+  await withTransaction(async (client) => {
+    const exists = await client.query<{ id: string }>(
+      `
+        SELECT id
+        FROM products
+        WHERE id = $1
+        FOR UPDATE
+      `,
+      [productId]
+    );
+
+    if ((exists.rowCount ?? 0) === 0) {
+      throw new Error("Produto nao encontrado para exclusao.");
+    }
+
+    await client.query("DELETE FROM products WHERE id = $1", [productId]);
+  });
+}
+
 export async function updateGoals(goals: Goals): Promise<Goals> {
   const { rows } = await query<GoalRow>(
     `
@@ -731,4 +751,62 @@ export async function announceSale(
 
   const snapshot = await getSnapshot();
   return { snapshot, event };
+}
+
+export async function cancelSale(
+  saleId: number
+): Promise<{ snapshot: DashboardSnapshot; canceledSaleId: number }> {
+  await withTransaction(async (client) => {
+    const saleLookup = await client.query<{
+      id: number;
+      productId: string;
+      quantity: number;
+    }>(
+      `
+        SELECT
+          s.id,
+          s.product_id AS "productId",
+          s.quantity
+        FROM sales s
+        WHERE s.id = $1
+      `,
+      [saleId]
+    );
+
+    if ((saleLookup.rowCount ?? 0) === 0) {
+      throw new Error("Venda nao encontrada para cancelamento.");
+    }
+
+    const sale = saleLookup.rows[0];
+
+    const productLock = await client.query<{ id: string }>(
+      `
+        SELECT id
+        FROM products
+        WHERE id = $1
+        FOR UPDATE
+      `,
+      [sale.productId]
+    );
+
+    if ((productLock.rowCount ?? 0) === 0) {
+      throw new Error("Produto da venda nao encontrado para estorno.");
+    }
+
+    await client.query(
+      `
+        UPDATE products
+        SET
+          stock = stock + $1,
+          updated_at = NOW()
+        WHERE id = $2
+      `,
+      [sale.quantity, sale.productId]
+    );
+
+    await client.query("DELETE FROM sales WHERE id = $1", [saleId]);
+  });
+
+  const snapshot = await getSnapshot();
+  return { snapshot, canceledSaleId: saleId };
 }

@@ -1,8 +1,10 @@
 import { create } from "zustand";
 import {
   announceSale as apiAnnounceSale,
+  cancelSale as apiCancelSale,
   createProduct as apiCreateProduct,
   createProductsBatch as apiCreateProductsBatch,
+  deleteProduct as apiDeleteProduct,
   fetchSnapshot,
   getApiBase,
   saveGoals as apiSaveGoals,
@@ -29,8 +31,10 @@ interface GoalControlState {
   createProduct: (payload: ProductPayload) => Promise<void>;
   createProductsBatch: (payloads: ProductPayload[]) => Promise<void>;
   updateProduct: (productId: string, payload: ProductPayload) => Promise<void>;
+  deleteProduct: (productId: string) => Promise<void>;
   saveGoals: (goals: Goals) => Promise<void>;
   announceSale: (productId: string, quantity: number) => Promise<void>;
+  cancelSale: (saleId: number) => Promise<void>;
   clearError: () => void;
 }
 
@@ -164,6 +168,18 @@ export const useGoalControlStore = create<GoalControlState>((set, get) => ({
     }
   },
 
+  deleteProduct: async (productId) => {
+    try {
+      const snapshot = await apiDeleteProduct(productId);
+      set({ snapshot, errorMessage: null });
+    } catch (error) {
+      set({
+        errorMessage: error instanceof Error ? error.message : "Nao foi possivel excluir produto."
+      });
+      throw error;
+    }
+  },
+
   saveGoals: async (goals) => {
     try {
       const snapshot = await apiSaveGoals(goals);
@@ -187,6 +203,18 @@ export const useGoalControlStore = create<GoalControlState>((set, get) => ({
     } catch (error) {
       set({
         errorMessage: error instanceof Error ? error.message : "Não foi possível anunciar venda."
+      });
+      throw error;
+    }
+  },
+
+  cancelSale: async (saleId) => {
+    try {
+      const snapshot = await apiCancelSale(saleId);
+      set({ snapshot, errorMessage: null });
+    } catch (error) {
+      set({
+        errorMessage: error instanceof Error ? error.message : "Nao foi possivel cancelar venda."
       });
       throw error;
     }
